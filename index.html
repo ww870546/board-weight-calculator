@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.1</title>
+<title>板材多功能计算器 v3.2</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -52,6 +52,8 @@
     body { margin: 8px; }
     th, td { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
     td input, td select { font-size: 14px; padding: 6px 4px; min-width: 52px; }
+    select { background:#fff !important; color:#1a1a1a !important; -webkit-text-fill-color:#1a1a1a !important; }
+    #container-select, #wood-box-select { min-width:96px; }
     .summary .value { font-size: 16px; }
     .toolbar { text-align: center; }
     .toolbar input { width: 100%; box-sizing: border-box; margin: 0 0 8px 0; }
@@ -64,6 +66,7 @@
   .btn-excel { background: #16a34a; color: #fff; }
   .btn-print { background: #2563eb; color: #fff; }
   @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     @page { size: A4; margin: 0; }
     html, body { margin: 0; padding: 8mm; background: #fff; }
     .toolbar, .actions, .del-row, #btn-add, #btn-clear, .note, .credit-line, .sub { display: none !important; }
@@ -107,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.1</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.2</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -560,6 +563,159 @@ function calcPalletStack(tMm, oneKg, containerH) {
   return { layers: best.n, pcsPerLayer: best.pcs, totalPcs: best.total };
 }
 
+const THICK_COLORS = ['#8BC8EA', '#A2DDAA', '#E1B98F', '#C9A7E8', '#DEBEF8', '#F4B393'];
+
+// 同一平放位置内，对连续同厚度的层段做张数均衡（总张数/层数不变，总高与可行性不变）
+function balanceLayers(layers) {
+  let s = 0;
+  while (s < layers.length) {
+    let e = s;
+    while (e + 1 < layers.length && layers[e + 1].t === layers[s].t) e++;
+    if (e > s) {
+      const T = layers.slice(s, e + 1).reduce((a, l) => a + l.pcs, 0);
+      const len = e - s + 1, base = Math.floor(T / len);
+      let r = T - base * len;
+      for (let k = s; k <= e; k++) { layers[k].pcs = base + (r > 0 ? 1 : 0); if (r > 0) r--; }
+    }
+    s = e + 1;
+  }
+  return layers;
+}
+
+// 逐柜装板模拟：平放位置从下往上动态堆（每托张数取重量/高度最小值），立放托张数按剩余宽度反推
+function simulateLoading(c, items, extra) {
+  let maxPalL = 0, maxPalW = 0;
+  items.forEach((it, idx) => {
+    it.color = THICK_COLORS[idx % THICK_COLORS.length];
+    it.palletL = Math.max(it.L, it.W) + extra;
+    it.palletW = Math.min(it.L, it.W) + extra;
+    it.maxPcs = Math.floor(MAX_PALLET_WEIGHT / it.oneKg) || 1;
+    maxPalL = Math.max(maxPalL, it.palletL);
+    maxPalW = Math.max(maxPalW, it.palletW);
+  });
+  const flatCols = Math.floor(c.W / maxPalW);
+  const flatRows = Math.floor(c.L / maxPalL);
+  const remainW = c.W - flatCols * maxPalW;
+  const standCols = Math.floor(c.L / maxPalL);
+  const availH = c.H - TOP_CLEARANCE;
+  const rem = items.map(it => it.n);
+  const boxes = [];
+  let guard = 0;
+  const left = () => rem.reduce((s, v) => s + v, 0);
+  while (left() > 0 && guard < 10000) {
+    guard++;
+    const box = { flat: [], stand: [] };
+    for (let r = 0; r < flatRows; r++) {
+      for (let cc = 0; cc < flatCols; cc++) {
+        const layers = []; let baseH = 0;
+        while (true) {
+          let placed = null;
+          for (let ii = 0; ii < items.length; ii++) {
+            if (rem[ii] <= 0) continue;
+            const it = items[ii];
+            const byH = Math.floor((availH - baseH - PALLET_H) / (it.t / 1000));
+            if (byH < 1) continue;
+            const pcs = Math.min(rem[ii], it.maxPcs, byH);
+            if (pcs < 1) continue;
+            placed = { ii, pcs }; break;
+          }
+          if (!placed) break;
+          const it = items[placed.ii];
+          layers.push({ t: it.t, color: it.color, pcs: placed.pcs });
+          rem[placed.ii] -= placed.pcs;
+          baseH += PALLET_H + (it.t / 1000) * placed.pcs;
+        }
+        box.flat.push(balanceLayers(layers));
+      }
+    }
+    for (let sp = 0; sp < standCols; sp++) {
+      let placed = null;
+      for (let ii = 0; ii < items.length; ii++) {
+        if (rem[ii] <= 0) continue;
+        const it = items[ii];
+        const byW = Math.floor((remainW - extra) / (it.t / 1000));
+        if (byW < 1) continue;
+        const pcs = Math.min(rem[ii], it.maxPcs, byW);
+        if (pcs < 1) continue;
+        placed = { ii, pcs }; break;
+      }
+      if (placed) { const it = items[placed.ii]; box.stand.push({ t: it.t, color: it.color, pcs: placed.pcs }); rem[placed.ii] -= placed.pcs; }
+      else box.stand.push(null);
+    }
+    boxes.push(box);
+  }
+  return { boxes, flatCols, flatRows, standCols, remainW, maxPalL, maxPalW, availH };
+}
+
+// 逐柜渲染俯视示意图：N柜画N图，平放位置内多层（多托）逐层分色标注
+function renderDiagram(c, sim, items, needContainers, extra) {
+  const diagram = document.getElementById('container-diagram');
+  const scale = Math.min(560 / c.L, 300 / c.W);
+  const cW = c.L * scale, cH = c.W * scale;
+  const padL = 56, padT = 44;
+  let blocks = '';
+  for (let bi = 0; bi < needContainers; bi++) {
+    const box = sim.boxes[bi];
+    const isExtra = !box;
+    let inner = '';
+    if (!isExtra) {
+      let pi = 0;
+      for (let r = 0; r < sim.flatRows; r++) {
+        for (let cc = 0; cc < sim.flatCols; cc++) {
+          const layers = box.flat[pi++] || [];
+          if (!layers.length) continue;
+          const x = r * sim.maxPalL * scale, y = cc * sim.maxPalW * scale;
+          const w = sim.maxPalL * scale - 3, h = sim.maxPalW * scale - 3;
+          const lh = h / layers.length;
+          layers.forEach((l, li) => {
+            inner += `<div style="position:absolute;left:${x+1}px;top:${y+li*lh+1}px;width:${w-2}px;height:${lh-2}px;background:${l.color};border:1px solid rgba(0,0,0,0.25);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+              <div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;">${l.t}mm</div>
+              <div style="font-size:14px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;">${l.pcs}张</div>
+            </div>`;
+          });
+        }
+      }
+      const standY = sim.flatCols * sim.maxPalW * scale;
+      box.stand.forEach((s, sp) => {
+        if (!s) return;
+        const depth = (s.t / 1000) * s.pcs + extra;
+        const x = sp * sim.maxPalL * scale;
+        const w = sim.maxPalL * scale - 3, h = depth * scale - 2;
+        inner += `<div style="position:absolute;left:${x+1}px;top:${standY+1}px;width:${w-2}px;height:${h}px;background:${s.color};border:1px solid rgba(0,0,0,0.25);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+          <div style="font-size:10px;font-weight:bold;color:#111;line-height:1.1;">${s.t}mm立放</div>
+          <div style="font-size:12px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;">${s.pcs}张</div>
+        </div>`;
+      });
+    }
+    blocks += `<div style="margin:0 auto 18px;width:${cW+padL+26}px;">
+      <div style="font-size:13px;font-weight:bold;color:#333;margin-bottom:2px;">第 ${bi+1} 柜${isExtra?'（按重量限载，本柜减载/留空）':''}</div>
+      <div style="position:relative;width:${cW+padL+26}px;height:${cH+padT+8}px;">
+        <div style="position:absolute;top:5px;left:${padL}px;width:${cW}px;text-align:center;font-size:12px;font-weight:bold;color:#333;">长 ${c.L}m</div>
+        <div style="position:absolute;left:6px;top:${padT}px;height:${cH}px;display:flex;align-items:center;">
+          <span style="font-size:12px;font-weight:bold;color:#333;transform:rotate(-90deg);white-space:nowrap;">宽 ${c.W}m</span>
+        </div>
+        <div style="position:absolute;left:${padL}px;top:${padT}px;width:${cW}px;height:${cH}px;border:2px solid #333;background:#fafafa;">
+          ${isExtra ? '' : inner}
+          <div style="position:absolute;right:0;top:0;width:13px;height:${cH}px;background:#fff;">
+            <div style="position:absolute;left:50%;top:0;height:100%;border-left:1px solid #333;"></div>
+            <div style="position:absolute;left:7px;top:2px;width:4px;height:4px;background:#333;"></div>
+            <div style="position:absolute;left:7px;bottom:2px;width:4px;height:4px;background:#333;"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+  const legend = items.map((it, idx) =>
+    `<span style="display:inline-flex;align-items:center;margin:0 12px 4px 0;">
+      <span style="display:inline-block;width:14px;height:14px;background:${THICK_COLORS[idx%THICK_COLORS.length]};border:1px solid rgba(0,0,0,0.2);margin-right:4px;"></span>
+      <span style="font-size:12px;color:#444;">${it.t}mm板</span>
+    </span>`).join('');
+  diagram.innerHTML = `
+    <div style="font-size:12px;color:#555;margin-bottom:4px;">装柜俯视示意（${c.name}，共 ${needContainers} 柜；托盘按厚度分色，平放堆叠逐层列出，数字=该托张数）</div>
+    <div style="margin-bottom:8px;">${legend}</div>
+    ${blocks}`;
+}
+
 function calcContainers(totalKg, totalVol, rowsArg) {
   const tbody = document.getElementById('container-result');
   if (!tbody) return;
@@ -595,230 +751,47 @@ function calcContainers(totalKg, totalVol, rowsArg) {
     return;
   }
 
-  // 计算每种板材的托盘尺寸和每托最大张数
-  items.forEach(it => {
-    it.maxPcs = calcMaxPcsPerPallet(it.t, it.oneKg);
-    it.palletL = Math.max(it.L, it.W) + getPalletExtra();
-    it.palletW = Math.min(it.L, it.W) + getPalletExtra();
-  });
-
   const selIdx = parseInt(document.getElementById('container-select').value);
-  tbody.innerHTML = CONTAINERS.map((c, ci) => {
-    if (ci !== selIdx) return '';
-    const byWeight = totalKg / c.maxWeight;
-    const rowBg = 'background:#fff3cd;';
-    const subBg = 'background:#fff9e6;';
-    const it0 = items[0];
+  const c = CONTAINERS[selIdx];
+  const extra = getPalletExtra();
+  const sim = simulateLoading(c, items, extra);
+  const weightBoxes = Math.ceil(totalKg / c.maxWeight - 1e-9);
+  const needContainers = Math.max(sim.boxes.length, weightBoxes);
+  const bottleneck = weightBoxes >= sim.boxes.length ? '重量' : '托盘布局';
+  const overBy = totalKg - c.maxWeight;
+  let noteText;
+  if (overBy > 0 && overBy <= 2000)
+    noteText = '<span style="color:#dc2626;font-weight:bold;">⚠ 货物重量稍大于柜型载重，请甄别可装柜数是否合理</span>';
+  else noteText = bottleneck + '决定柜数';
 
-    // 该柜型的堆叠方案
-    const stack = calcPalletStack(it0.t, it0.oneKg, c.H);
-    const layers = stack.layers;
-    const pcsPerLayer = stack.pcsPerLayer;
-    const stackH = layers * PALLET_H + layers * pcsPerLayer * it0.t/1000;
-
-    // 平面托盘位
-    const flatCols = Math.floor(c.W / it0.palletW);
-    const flatRows = Math.floor(c.L / it0.palletL);
-    const remainW = c.W - flatCols * it0.palletW;
-    const standDepth = (it0.t/1000) * it0.maxPcs + getPalletExtra();
-    const standCols = Math.floor(c.L / it0.palletL);
-    const standRows = remainW >= standDepth ? 1 : 0;
-    // 平放可堆layers层，立放1层
-    const slotsPerBox = flatCols*flatRows*layers + standCols*standRows;
-
-    // 总托数（每托最多maxPcs张）
-    let totalPcs = 0, totalPallets = 0;
-    items.forEach(x => {
-      totalPcs += x.n;
-      totalPallets += Math.ceil(x.n / x.maxPcs);
-    });
-    const byPallets = totalPallets / slotsPerBox;
-    const needContainers = Math.max(Math.ceil(byWeight - 1e-9), Math.ceil(byPallets - 1e-9));
-    const bottleneck = byWeight >= byPallets ? '重量' : '托盘位';
-    // 超重2吨内红字提示
-    const overBy = totalKg - c.maxWeight;
-    const noteText = (overBy > 0 && overBy <= 2000)
-      ? '<span style="color:#dc2626;">⚠ 货物重量稍大于柜型载重，请甄别可装柜数是否合理</span>'
-      : bottleneck + '注意要点';
-
-    // 对每种厚度计算每托分配
-    const adviceParts = [];
-    items.forEach(it => {
-      const palletsForThis = Math.ceil(it.n / it.maxPcs);
-      const pcsList = [];
-      for (let p = 0; p < palletsForThis; p++) {
-        const remain = Math.max(0, it.n - p * it.maxPcs);
-        pcsList.push(Math.min(it.maxPcs, remain));
-      }
-      // 合并相同张数的连续段
-      const segs = [];
-      let start = 1, cur = pcsList[0];
-      for (let i = 1; i <= pcsList.length; i++) {
-        if (i === pcsList.length || pcsList[i] !== cur) {
-          segs.push(start === i ? `托${start}=${cur}张` : `托${start}-${i}=${cur}张`);
-          start = i + 1;
-          cur = pcsList[i];
-        }
-      }
-      const stk = calcPalletStack(it.t, it.oneKg, c.H);
-      const stkH = stk.layers * PALLET_H + stk.layers * stk.pcsPerLayer * it.t/1000;
-      adviceParts.push(`${it.t}mm板：${segs.join('，')}（每托${(it.maxPcs*it.oneKg).toFixed(0)}kg上限），可堆${stk.layers}层，叠高${stkH.toFixed(2)}m`);
-    });
-    const advice = adviceParts.join('<br>');
-
-    return `<tr style="${rowBg}">
-      <td><b>${c.name}</b></td>
-      <td style="font-size:11px;">${c.L}×${c.W}×${c.H}m</td>
-      <td>${(c.maxWeight/1000).toFixed(1)}t</td>
-      <td>${c.maxVol}m³</td>
-      <td style="font-size:16px;font-weight:bold;color:#16a34a;">${needContainers} 柜</td>
-      <td style="font-size:11px;color:#888;">${noteText}</td>
-    </tr>
-    <tr class="advice-row"><td colspan="6" style="font-size:11px;color:#666;text-align:left;padding:4px 8px;${subBg}">
-      每托建议：${advice}<br>
-      <span style="color:#999;">平放托盘可堆叠，立放不可堆叠；实际装柜以现场空间和船公司限重为准</span>
-    </td></tr>`;
-  }).join('');
-
-  // 装柜俯视图（按选择柜型画托盘布局）
-  const diagram = document.getElementById('container-diagram');
-  const sel = document.getElementById('container-select');
-  const c = CONTAINERS[parseInt(sel.value)];
-  const it = items[0];
-  const stack = calcPalletStack(it.t, it.oneKg, c.H);
-  const layers = stack.layers;
-  const pcsPerLayer = stack.pcsPerLayer;
-  const scale = Math.min(500 / c.L, 600 / c.W);
-  const cW = c.L * scale, cH = c.W * scale;
-
-  // 平放区
-  const palletWpx = it.palletW * scale;
-  const palletLpx = it.palletL * scale;
-  const flatCols = Math.floor(c.W / it.palletW);
-  const flatRows = Math.floor(c.L / it.palletL);
-  const flatSlots = flatCols * flatRows;
-
-  // 立放区
-  const remainW = c.W - flatCols * it.palletW;
-  const standDepth = (it.t / 1000) * it.maxPcs + getPalletExtra();
-  const standCols = Math.floor(c.L / it.palletL);
-  const standRows = remainW >= standDepth ? 1 : 0;
-  const standSlots = standCols * standRows;
-
-  const totalSlotsPerContainer = flatSlots * layers + standSlots;
-
-  // 总托数
-  let totalPcs = 0;
-  items.forEach(x => totalPcs += x.n);
-  let totalPallets = 0;
-  items.forEach(x => totalPallets += Math.ceil(x.n / x.maxPcs));
-
-  const filledPallets = Math.min(totalPallets, totalSlotsPerContainer);
-  const neededContainers = Math.ceil(totalPallets / totalSlotsPerContainer);
-
-  // 构建托盘厚度映射（按顺序填充，不同厚度用不同颜色）
-  const palletInfo = [];
-  const thicknessColors = ['#8BC8EA', '#A2DDAA', '#E1B98F', '#C9A7E8', '#DEBEF8'];
-  items.forEach((it, idx) => {
-    const palletsForThis = Math.ceil(it.n / it.maxPcs);
-    for (let p = 0; p < palletsForThis; p++) {
-      palletInfo.push({ t: it.t, color: thicknessColors[idx % thicknessColors.length] });
-    }
+  // 每托建议：按厚度汇总张数分布（n托=pcs张）
+  const byT = {};
+  sim.boxes.forEach(b => {
+    b.flat.forEach(layers => layers.forEach(l => { (byT[l.t] = byT[l.t] || []).push(l.pcs); }));
+    b.stand.forEach(s => { if (s) (byT[s.t] = byT[s.t] || []).push(s.pcs); });
+  });
+  const adviceLines = Object.keys(byT).map(t => {
+    const counts = byT[t].slice().sort((a, b) => a - b);
+    const groups = [];
+    counts.forEach(p => { const g = groups.find(x => x.pcs === p); if (g) g.n++; else groups.push({ pcs: p, n: 1 }); });
+    return `${t}mm板：` + groups.map(g => `${g.n}托=${g.pcs}张`).join('，') + `（每托货物≤${MAX_PALLET_WEIGHT}kg）`;
   });
 
-  let boxes = '';
-  let palletCount = 0;
-  // 平放托盘：每个位置堆layers层，编号竖向排列
-  for (let r = 0; r < flatRows && palletCount < filledPallets; r++) {
-    for (let col = 0; col < flatCols && palletCount < filledPallets; col++) {
-      const labels = [];
-      const firstIdx = palletCount;
-      for (let l = 0; l < layers && palletCount < filledPallets; l++) {
-        palletCount++;
-        labels.push(palletCount);
-      }
-      const pt = palletInfo[firstIdx] || { t: '', color: '#8BC8EA' };
-      boxes += `<div style="position:absolute;left:${r*palletLpx+2}px;top:${col*palletWpx+2}px;width:${palletLpx-4}px;height:${palletWpx-4}px;background:${pt.color};border:1px solid rgba(0,0,0,0.2);border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:#1a1a1a;line-height:1.2;">
-        <div style="font-size:10px;font-weight:bold;">${pt.t}mm</div>
-        <div style="font-size:10px;">${labels.length}层</div>
-        <div>${labels.join('↑')}</div>
-      </div>`;
-    }
-  }
-  // 立放托盘：沿长度排，沿宽度剩余区
-  for (let r = 0; r < standCols && palletCount < filledPallets; r++) {
-    for (let col = 0; col < standRows && palletCount < filledPallets; col++) {
-      palletCount++;
-      const pt = palletInfo[palletCount - 1] || { t: '', color: '#F4B393' };
-      boxes += `<div style="position:absolute;left:${r*palletLpx+2}px;top:${flatCols*palletWpx+col*standDepth*scale+2}px;width:${palletLpx-4}px;height:${standDepth*scale-4}px;background:${pt.color};border:1px solid rgba(0,0,0,0.2);border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:#1a1a1a;line-height:1.2;">
-        <div style="font-size:9px;">${pt.t}mm立放</div>
-        <div>${palletCount}</div>
-      </div>`;
-    }
-  }
+  tbody.innerHTML = `
+  <tr style="background:#fff3cd;">
+    <td><b>${c.name}</b></td>
+    <td style="font-size:11px;">${c.L}×${c.W}×${c.H}m</td>
+    <td>${(c.maxWeight/1000).toFixed(1)}t</td>
+    <td>${c.maxVol}m³</td>
+    <td style="font-size:16px;font-weight:bold;color:#16a34a;">${needContainers} 柜</td>
+    <td style="font-size:11px;color:#666;">${noteText}</td>
+  </tr>
+  <tr class="advice-row"><td colspan="6" style="font-size:11px;color:#555;text-align:left;padding:5px 8px;background:#fff9e6;">
+    每托建议：${adviceLines.join('<br>')}<br>
+    <span style="color:#888;">平放托盘可堆叠，立放不可堆叠；实际装柜以现场空间和船公司限重为准</span>
+  </td></tr>`;
 
-  // 托盘尺寸标注
-  const palletSizeLbl = `托盘${(it.palletL*1000).toFixed(0)}×${(it.palletW*1000).toFixed(0)}mm`;
-  const overByCur = totalKg - c.maxWeight;
-  const warn = (overByCur > 0 && overByCur <= 2000)
-    ? `<div style="font-size:12px;color:#dc2626;margin-top:6px;font-weight:bold;">⚠ 货物重量稍大于柜型载重，请甄别可装柜数是否合理</div>`
-    : '';
-
-  // 门的位置（右端双线）
-  // 按实际放置的托盘数计算占用空间（不是理论最大排数）
-  const actualFlatPallets = Math.min(filledPallets, flatSlots * layers);  // 实际平放托数
-  const actualFlatPositions = Math.ceil(actualFlatPallets / layers);       // 实际平放位置数（每个位置堆layers层）
-  const actualFlatRows = Math.ceil(actualFlatPositions / Math.max(flatCols,1));  // 实际平放排数
-  const actualStandPallets = Math.max(0, filledPallets - flatSlots * layers);    // 实际立放托数
-  const actualStandRows = standRows > 0 ? Math.ceil(actualStandPallets / standRows) : 0;  // 实际立放排数
-  const actualUsedRows = Math.max(actualFlatRows, actualStandRows);          // 实际占用排数（取平放和立放的最大值）
-  const d_usedLen = actualUsedRows * it.palletL;                              // 实际占用长度
-  const d_usedWid = flatCols * it.palletW + (actualStandPallets > 0 ? standDepth : 0);  // 实际占用宽度
-  const d_leftLen = c.L - d_usedLen;                                          // 长度方向剩余
-  const d_leftWid = c.W - d_usedWid;                                          // 宽度方向剩余
-
-  // 颜色图例
-  const legendHtml = items.map((it, idx) => 
-    `<span style="display:inline-flex;align-items:center;margin-right:12px;">
-      <span style="display:inline-block;width:14px;height:14px;background:${thicknessColors[idx % thicknessColors.length]};border:1px solid rgba(0,0,0,0.2);border-radius:2px;margin-right:4px;"></span>
-      <span style="font-size:11px;color:#666;">${it.t}mm板</span>
-    </span>`
-  ).join('');
-
-  diagram.innerHTML = `
-    <div style="font-size:12px;color:#666;margin-bottom:4px;">装柜俯视示意（${c.name}，数字=托盘编号；${palletSizeLbl}）</div>
-    <div style="margin-bottom:6px;">${legendHtml}</div>
-    <div style="position:relative;width:${cW + 120}px;height:${cH + 120}px;margin:0 auto;">
-      <!-- 顶部标注：柜长 -->
-      <div style="position:absolute;top:32px;left:60px;width:${cW}px;text-align:center;font-size:13px;color:#333;font-weight:bold;">长 ${c.L}m</div>
-      <!-- 左侧标注：柜宽 -->
-      <div style="position:absolute;left:15px;top:60px;height:${cH}px;display:flex;align-items:center;">
-        <span style="font-size:13px;color:#333;font-weight:bold;transform:rotate(-90deg);white-space:nowrap;">宽 ${c.W}m</span>
-      </div>
-      <!-- 柜体 -->
-      <div style="position:absolute;left:60px;top:60px;width:${cW}px;height:${cH}px;border:2px solid #333;background:#fafafa;">
-        ${boxes}
-        <!-- 双开门（右端） -->
-        <div style="position:absolute;right:0;top:0;width:18px;height:${cH}px;background:#fff;">
-          <!-- 门缝 -->
-          <div style="position:absolute;left:50%;top:0;width:0;height:100%;border-left:1px solid #333;"></div>
-          <!-- 门把手 -->
-          <div style="position:absolute;left:75%;top:50%;transform:translate(-50%,-50%);width:6px;height:10px;background:#333;border-radius:1px;"></div>
-          <!-- 上铰链 -->
-          <div style="position:absolute;left:12px;top:2px;width:4px;height:4px;background:#333;"></div>
-          <!-- 下铰链 -->
-          <div style="position:absolute;left:12px;bottom:2px;width:4px;height:4px;background:#333;"></div>
-        </div>
-        <!-- 开门方向线（上） -->
-        <div style="position:absolute;right:-30px;top:-8px;width:40px;height:0;border-top:2px solid #333;transform:rotate(-25deg);transform-origin:right center;"></div>
-        <!-- 开门方向线（下） -->
-        <div style="position:absolute;right:-30px;bottom:-8px;width:40px;height:0;border-top:2px solid #333;transform:rotate(25deg);transform-origin:right center;"></div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:#888;text-align:center;margin-top:6px;">
-      总${totalPallets}托（${totalPcs}张），每柜${totalSlotsPerContainer}托（平放${flatSlots}×${layers}层+立放${standSlots}），需${neededContainers}柜${d_leftLen > 0.01 ? ` | 余长${(d_leftLen*1000).toFixed(0)}mm` : ''}${d_leftWid > 0.01 ? ` | 余宽${(d_leftWid*1000).toFixed(0)}mm` : ''}
-    </div>
-    ${warn}`;
+  renderDiagram(c, sim, items, needContainers, extra);
   } catch(e) {
     console.error('calcContainers error:', e);
   }
