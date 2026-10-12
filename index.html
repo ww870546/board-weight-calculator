@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材重量计算器 v2.42</title>
+<title>板材多功能计算器 v3.1</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -16,6 +16,10 @@
   }
   .wrap { max-width: 1100px; margin: 0 auto; }
   table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #rows-table { min-width: 780px; }
+  #container-table { min-width: 620px; }
+  #container-diagram { overflow-x: auto; }
   th, td { border: 1px solid #ccc; padding: 8px 6px; text-align: center; vertical-align: middle; }
   th { background: #eeeeee; font-size: 13px; }
   td input, td select {
@@ -46,9 +50,12 @@
   .btn-outline { background: #fff; color: #333; border: 1px solid #999; }
   @media (max-width: 600px) {
     body { margin: 8px; }
-    th, td { padding: 5px 3px; font-size: 12px; }
-    td input, td select { font-size: 12px; padding: 4px 2px; }
+    th, td { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
+    td input, td select { font-size: 14px; padding: 6px 4px; min-width: 52px; }
     .summary .value { font-size: 16px; }
+    .toolbar { text-align: center; }
+    .toolbar input { width: 100%; box-sizing: border-box; margin: 0 0 8px 0; }
+    .toolbar button { width: 100%; margin: 4px 0; padding: 12px 16px; font-size: 15px; }
   }
   .toolbar {
     max-width: 1100px; margin: 0 auto 10px; text-align: right;
@@ -97,10 +104,10 @@
 </head>
 <body>
 
-<h2>板材重量 / 体积计算器</h2>
+<h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v2.42</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.1</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -117,6 +124,7 @@
 
 <div class="print-head" id="print-date"></div>
 <div class="wrap">
+  <div class="table-scroll">
   <table id="rows-table">
     <thead>
       <tr>
@@ -135,6 +143,7 @@
     </thead>
     <tbody id="rows"></tbody>
   </table>
+  </div>
 
   <div class="actions">
     <button class="btn btn-primary" id="btn-add">+ 添加一行</button>
@@ -175,6 +184,7 @@
       </label>
     </div>
 
+    <div class="table-scroll">
     <table id="container-table" style="font-size:13px;">
       <thead>
         <tr style="background:#f5f5f5;">
@@ -188,6 +198,7 @@
       </thead>
       <tbody id="container-result"></tbody>
     </table>
+    </div>
 
     <!-- 装柜示意图 -->
     <div id="container-diagram" style="margin-top:12px;"></div>
