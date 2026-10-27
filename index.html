@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.18</title>
+<title>板材多功能计算器 v3.19</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.18</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.19</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -715,15 +715,20 @@ function renderDiagram(c, sim, items, needContainers, extra) {
             // 叠放时各层无缝拼接（不画中间分割线），靠外层双框表示堆叠
             const bandBorder = nL > 1 ? 'none' : '1px solid rgba(0,0,0,0.35)';
             inner += `<div style="position:absolute;left:${x}px;top:${top}px;width:${w}px;height:${lh}px;background:${l.color};border:${bandBorder};box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
-              <div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;">${l.t}mm${tag}</div>
-              <div style="font-size:14px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;">${l.pcs}张</div>
+              ${nL>1?'':`<div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;">${l.t}mm${tag}</div>
+              <div style="font-size:14px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;">${l.pcs}张</div>`}
             </div>`;
           });
           if (nL > 1) {
             // 双框：外框 + 内框（内框内缩），表示这是一叠
             inner += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;pointer-events:none;"></div>`;
             inner += `<div style="position:absolute;left:${x+7}px;top:${y+7}px;width:${w-14}px;height:${h-14}px;border:2px solid rgba(0,0,0,0.45);box-sizing:border-box;pointer-events:none;"></div>`;
-            inner += `<div style="position:absolute;left:${x}px;top:${y+3}px;width:${w}px;text-align:center;font-size:10px;font-weight:bold;color:#444;pointer-events:none;">两层堆叠</div>`;
+            const topL = layers[nL-1], botL = layers[0];
+            inner += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;line-height:1.25;">
+              <div style="font-size:12px;font-weight:bold;color:#111;background:rgba(255,255,255,0.88);padding:0 5px;border-radius:2px;margin-bottom:2px;">两层堆叠</div>
+              <div style="font-size:12px;font-weight:bold;color:#111;white-space:nowrap;">${topL.t}mm（上层）${topL.pcs}张</div>
+              <div style="font-size:12px;font-weight:bold;color:#111;white-space:nowrap;">${botL.t}mm（下层）${botL.pcs}张</div>
+            </div>`;
           } else {
             // 单层托（如只剩几张）也加一道粗外框，代表一个整体
             inner += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;pointer-events:none;"></div>`;
@@ -742,10 +747,10 @@ function renderDiagram(c, sim, items, needContainers, extra) {
         const depth = isFull ? (cH - standY) / scale : ((s.t / 1000) * s.pcs + extra);
         const h = depth * scale;
         const insideLabel = h >= 26;
-        inner += `<div style="position:absolute;left:${x+1}px;top:${standY}px;width:${w-2}px;height:${h}px;background:${s.color};background-image:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,0.45) 5px, rgba(0,0,0,0.45) 6px);border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">${insideLabel ? `<div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${s.t}mm立放</div><div style="font-size:14px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${s.pcs}张</div>` : ''}</div>`;
+        inner += `<div style="position:absolute;left:${x+1}px;top:${standY}px;width:${w}px;height:${h}px;background:${s.color};background-image:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,0.45) 5px, rgba(0,0,0,0.45) 6px);border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">${insideLabel ? `<div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${s.t}mm立放</div><div style="font-size:14px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${s.pcs}张</div>` : ''}</div>`;
         if (!insideLabel) {
           const whiteH = cH - standY - h;
-          inner += `<div style="position:absolute;left:${x+1}px;top:${standY + h}px;width:${w-2}px;height:${whiteH}px;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+          inner += `<div style="position:absolute;left:${x+1}px;top:${standY + h}px;width:${w}px;height:${whiteH}px;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
             <div style="font-size:11px;font-weight:bold;color:#111;line-height:1.15;">${s.t}mm立放</div>
             <div style="font-size:14px;font-weight:bold;color:#111;line-height:1.15;white-space:nowrap;">${s.pcs}张</div>
           </div>`;
