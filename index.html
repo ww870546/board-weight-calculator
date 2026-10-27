@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.3</title>
+<title>板材多功能计算器 v3.4</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.3</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.4</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -684,20 +684,20 @@ function renderDiagram(c, sim, items, needContainers, extra) {
         }
       }
       const standY = sim.flatCols * sim.maxPalW * scale;
+      const standFillH = cH - standY; // 立放区铺满剩余宽度并贴住底框，避免留白被误认为还能放
       box.stand.forEach((s, sp) => {
         if (!s) return;
-        const depth = (s.t / 1000) * s.pcs + extra;
         const x = sp * sim.maxPalL * scale;
-        const w = sim.maxPalL * scale - 3, h = depth * scale - 2;
-        inner += `<div style="position:absolute;left:${x+1}px;top:${standY+1}px;width:${w-2}px;height:${h}px;background:${s.color};border:1px solid rgba(0,0,0,0.25);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+        const w = sim.maxPalL * scale - 3;
+        inner += `<div style="position:absolute;left:${x+1}px;top:${standY}px;width:${w-2}px;height:${standFillH}px;background:${s.color};border:1px solid rgba(0,0,0,0.25);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
           <div style="font-size:10px;font-weight:bold;color:#111;line-height:1.1;">${s.t}mm立放</div>
           <div style="font-size:12px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;">${s.pcs}张</div>
         </div>`;
       });
     }
-    blocks += `<div style="margin:0 auto 18px;width:${cW+padL+26}px;">
-      <div style="font-size:13px;font-weight:bold;color:#333;margin-bottom:2px;">第 ${bi+1} 柜${isExtra?'（按重量限载，本柜减载/留空）':''}</div>
+    blocks += `<div style="margin:0 auto 26px;width:${cW+padL+26}px;">
       <div style="position:relative;width:${cW+padL+26}px;height:${cH+padT+8}px;">
+        <div style="position:absolute;left:${padL}px;top:5px;font-size:13px;font-weight:bold;color:#333;">第 ${bi+1} 柜${isExtra?'（减载/留空）':''}</div>
         <div style="position:absolute;top:5px;left:${padL}px;width:${cW}px;text-align:center;font-size:12px;font-weight:bold;color:#333;">长 ${c.L}m</div>
         <div style="position:absolute;left:6px;top:${padT}px;height:${cH}px;display:flex;align-items:center;">
           <span style="font-size:12px;font-weight:bold;color:#333;transform:rotate(-90deg);white-space:nowrap;">宽 ${c.W}m</span>
