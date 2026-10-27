@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.16</title>
+<title>板材多功能计算器 v3.17</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.16</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.17</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -655,32 +655,30 @@ function simulateLoading(c, items, extra) {
     items.forEach((it, ii) => {
       if (rem[ii] <= 0) return;
       if ((it.palletL - extra) >= 2.15) return; // 板长+木托>柜门框净宽2150mm，过不了门，不竖向立放
-      const byL = Math.floor((remainL - extra) / (it.t / 1000));
+      const byL = Math.floor((remainL - extra - 0.22) / (it.t / 1000)); // 减打包3cm+门边预留22cm
       if (byL < 1) return;
       const pcs = Math.min(rem[ii], it.maxPcs, byL);
       if (pcs < 1) return;
-      box.sideStand.push({ t: it.t, color: it.color, pcs });
+      box.sideStand.push({ t: it.t, color: it.color, pcs, byL });
       rem[ii] -= pcs;
     });
-    // 立放托太窄(<300mm)像刀片不稳：从各平放托匀张数过来加宽立放托
+    // 立放托越宽越稳：尽量从各平放托匀张数凑满 byL(扣掉门边预留的最大宽度)
     box.sideStand.forEach(ss => {
-      if (ss.pcs * ss.t / 1000 >= 0.30) return;
-      const targetPcs = Math.ceil(0.30 / (ss.t / 1000));
-      let need = targetPcs - ss.pcs;
+      let need = ss.byL - ss.pcs;
       if (need <= 0) return;
-      const nTiers = box.flat.length;
+      let remaining = box.flat.length;
       box.flat.forEach(layers => {
         if (need <= 0) return;
         layers.forEach(layer => {
           if (need <= 0) return;
           if (layer.t === ss.t && layer.pcs > 30) {
-            const per = Math.ceil(need / nTiers);
-            const take = Math.min(per, layer.pcs - 30, need);
+            const take = Math.min(layer.pcs - 30, Math.ceil(need / remaining));
             layer.pcs -= take;
             ss.pcs += take;
             need -= take;
           }
         });
+        remaining--;
       });
     });
     boxes.push(box);
