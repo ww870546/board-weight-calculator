@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.11</title>
+<title>板材多功能计算器 v3.12</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.11</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.12</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -642,6 +642,19 @@ function simulateLoading(c, items, extra) {
       if (placed) { const it = items[placed.ii]; box.stand.push({ t: it.t, color: it.color, pcs: placed.pcs, maxPcs: it.maxPcs }); rem[placed.ii] -= placed.pcs; }
       else box.stand.push(null);
     }
+    // 右侧柜长余料：竖向立放（板长沿柜宽、板厚沿柜长排）；仅当板max边+木托<柜宽才塞
+    const remainL = c.L - flatRows * maxPalL;
+    box.sideStand = [];
+    items.forEach((it, ii) => {
+      if (rem[ii] <= 0) return;
+      if ((it.palletL - extra) >= c.W) return; // 板太长沿柜宽放不下，不塞
+      const byL = Math.floor((remainL - extra) / (it.t / 1000));
+      if (byL < 1) return;
+      const pcs = Math.min(rem[ii], it.maxPcs, byL);
+      if (pcs < 1) return;
+      box.sideStand.push({ t: it.t, color: it.color, pcs });
+      rem[ii] -= pcs;
+    });
     boxes.push(box);
   }
   return { boxes, flatCols, flatRows, standCols, remainW, maxPalL, maxPalW, availH };
@@ -711,6 +724,18 @@ function renderDiagram(c, sim, items, needContainers, extra) {
           </div>`;
         }
       });
+      // 右侧柜长余料：竖向立放（板厚沿柜长排、板长沿柜宽）
+      if (box.sideStand && box.sideStand.length) {
+        const sx = sim.flatRows * sim.maxPalL * scale;
+        box.sideStand.forEach((ss) => {
+          const sw = (ss.pcs * ss.t / 1000 + extra) * scale;
+          const sh = sim.maxPalL * scale - 3;
+          inner += `<div style="position:absolute;left:${sx+1}px;top:2px;width:${sw-2}px;height:${sh}px;background:${ss.color};background-image:repeating-linear-gradient(to right, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,0.45) 5px, rgba(0,0,0,0.45) 6px);border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+            <div style="font-size:11px;font-weight:bold;color:#111;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${ss.t}mm竖立放</div>
+            <div style="font-size:14px;font-weight:bold;color:#111;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${ss.pcs}张</div>
+          </div>`;
+        });
+      }
     }
     blocks += `<div style="margin:0 auto 26px;width:${cW+padL+26}px;">
       <div style="position:relative;width:${cW+padL+26}px;height:${cH+padT+8}px;">
