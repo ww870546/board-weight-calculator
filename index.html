@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.13</title>
+<title>板材多功能计算器 v3.14</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.13</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.14</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -587,8 +587,14 @@ function simulateLoading(c, items, extra) {
   let maxPalL = 0, maxPalW = 0;
   items.forEach((it, idx) => {
     it.color = THICK_COLORS[idx % THICK_COLORS.length];
-    it.palletL = Math.max(it.L, it.W) + extra;
-    it.palletW = Math.min(it.L, it.W) + extra;
+    // 平放方向自动选：比较"大板沿柜长" vs "小板沿柜长(旋转)"哪个柜长托多；
+    // 旋转方向要求大板沿柜宽 < 2150mm柜门框净宽才允许（过得了门）
+    const dA_L = Math.max(it.L,it.W)+extra, dA_W = Math.min(it.L,it.W)+extra;
+    const dB_L = Math.min(it.L,it.W)+extra, dB_W = Math.max(it.L,it.W)+extra;
+    const rowsA = Math.floor(c.L/dA_L);
+    const rowsB = (dB_W < 2.15) ? Math.floor(c.L/dB_L) : 0;
+    if (rowsB > rowsA) { it.palletL=dB_L; it.palletW=dB_W; }
+    else { it.palletL=dA_L; it.palletW=dA_W; }
     it.maxPcs = Math.floor(MAX_PALLET_WEIGHT / it.oneKg) || 1;
     maxPalL = Math.max(maxPalL, it.palletL);
     maxPalW = Math.max(maxPalW, it.palletW);
@@ -728,7 +734,7 @@ function renderDiagram(c, sim, items, needContainers, extra) {
       if (box.sideStand && box.sideStand.length) {
         const sx = sim.flatRows * sim.maxPalL * scale;
         box.sideStand.forEach((ss) => {
-          const sw = (ss.pcs * ss.t / 1000 + extra) * scale;
+          const sw = Math.min((ss.pcs * ss.t / 1000 + extra) * scale, cW - sx - 16);
           const sh = sim.maxPalL * scale - 3;
           inner += `<div style="position:absolute;left:${sx+1}px;top:2px;width:${sw-2}px;height:${sh}px;background:${ss.color};background-image:repeating-linear-gradient(to right, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 5px, rgba(0,0,0,0.45) 5px, rgba(0,0,0,0.45) 6px);border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
             <div style="font-size:11px;font-weight:bold;color:#111;z-index:2;background:rgba(255,255,255,0.88);padding:1px 5px;border-radius:2px;">${ss.t}mm竖立放</div>
