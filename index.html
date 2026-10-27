@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.2</title>
+<title>板材多功能计算器 v3.3</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.2</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.3</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -667,12 +667,20 @@ function renderDiagram(c, sim, items, needContainers, extra) {
           const x = r * sim.maxPalL * scale, y = cc * sim.maxPalW * scale;
           const w = sim.maxPalL * scale - 3, h = sim.maxPalW * scale - 3;
           const lh = h / layers.length;
+          const nL = layers.length;
           layers.forEach((l, li) => {
-            inner += `<div style="position:absolute;left:${x+1}px;top:${y+li*lh+1}px;width:${w-2}px;height:${lh-2}px;background:${l.color};border:1px solid rgba(0,0,0,0.25);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
-              <div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;">${l.t}mm</div>
+            // li=0 为最底托；反转绘制，让底托在下、顶托在上
+            const drawIdx = nL - 1 - li;
+            const top = y + drawIdx * lh;
+            const tag = nL > 1 ? (li === 0 ? '（下）' : li === nL - 1 ? '（上）' : '（中）') : '';
+            inner += `<div style="position:absolute;left:${x}px;top:${top}px;width:${w}px;height:${lh}px;background:${l.color};border:1px solid rgba(0,0,0,0.35);box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;">
+              <div style="font-size:11px;font-weight:bold;color:#111;line-height:1.1;">${l.t}mm${tag}</div>
               <div style="font-size:14px;font-weight:bold;color:#111;line-height:1.1;white-space:nowrap;">${l.pcs}张</div>
             </div>`;
           });
+          if (nL > 1) {
+            inner += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;border:2px solid rgba(0,0,0,0.6);box-sizing:border-box;pointer-events:none;"></div>`;
+          }
         }
       }
       const standY = sim.flatCols * sim.maxPalW * scale;
@@ -711,7 +719,7 @@ function renderDiagram(c, sim, items, needContainers, extra) {
       <span style="font-size:12px;color:#444;">${it.t}mm板</span>
     </span>`).join('');
   diagram.innerHTML = `
-    <div style="font-size:12px;color:#555;margin-bottom:4px;">装柜俯视示意（${c.name}，共 ${needContainers} 柜；托盘按厚度分色，平放堆叠逐层列出，数字=该托张数）</div>
+    <div style="font-size:12px;color:#555;margin-bottom:4px;">装柜俯视示意（${c.name}，共 ${needContainers} 柜；托盘按厚度分色；同一格内上下分层为叠放托，标「下」为底托、「上」为顶托，数字=该托张数）</div>
     <div style="margin-bottom:8px;">${legend}</div>
     ${blocks}`;
 }
