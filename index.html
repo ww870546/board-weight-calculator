@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.25</title>
+<title>板材多功能计算器 v3.26</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.25</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.26</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -132,8 +132,8 @@
     <thead>
       <tr>
         <th style="width:30px;">#</th>
-        <th style="width:80px;">宽(mm)</th>
         <th style="width:80px;">长(mm)</th>
+        <th style="width:80px;">宽(mm)</th>
         <th style="width:110px;">密度</th>
         <th style="width:60px;">厚(mm)</th>
         <th style="width:60px;">张数</th>
@@ -267,8 +267,8 @@ function addRow(data = {}) {
   ).join('');
   tr.innerHTML = `
     <td class="dim idx"></td>
-    <td><input type="number" class="f-L" value="${data.L ?? 1220}" step="1"></td>
     <td><input type="number" class="f-W" value="${data.W ?? 2440}" step="1"></td>
+    <td><input type="number" class="f-L" value="${data.L ?? 1220}" step="1"></td>
     <td>
       <select class="f-d">${opts}</select>
       <input type="number" class="f-dc" value="${data.dc ?? ''}" step="0.1" placeholder="系数" style="margin-top:3px;display:none;">
@@ -351,7 +351,7 @@ function collectRows() {
     const sumVol = parseFloat(tr.querySelector('.r-sum-v').textContent) || 0;
     if (t && n && coeff > 0) data.push({
       '序号': i + 1,
-      '宽(mm)': L, '长(mm)': W,
+      '长(mm)': W, '宽(mm)': L,
       '密度': dName,
       '厚(mm)': t, '张数': n,
       '单张kg': oneKg.toFixed(2),
@@ -370,7 +370,7 @@ function exportExcel() {
   const sumTon = document.getElementById('sum-ton').textContent;
   const sumVol = document.getElementById('sum-vol').textContent;
 
-  const headers = ['序号','宽(mm)','长(mm)','密度','厚(mm)','张数','单张kg','小计kg','单张m³','小计m³'];
+  const headers = ['序号','长(mm)','宽(mm)','密度','厚(mm)','张数','单张kg','小计kg','单张m³','小计m³'];
   const orderNo = (document.getElementById('order-no').value || '').trim();
   const rows = [];
   if (orderNo) {
@@ -378,7 +378,7 @@ function exportExcel() {
     rows.push([]);
   }
   rows.push(headers);
-  data.forEach(r => rows.push([r['序号'], r['宽(mm)'], r['长(mm)'], r['密度'], r['厚(mm)'], r['张数'],
+  data.forEach(r => rows.push([r['序号'], r['长(mm)'], r['宽(mm)'], r['密度'], r['厚(mm)'], r['张数'],
     parseFloat(r['单张kg']), parseFloat(r['小计kg']), parseFloat(r['单张m³']), parseFloat(r['小计m³'])]));
   rows.push(['合计','','','','', parseInt(sumPcs), '', sumKg, '', sumVol]);
 
