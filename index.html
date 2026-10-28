@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.23</title>
+<title>板材多功能计算器 v3.24</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.23</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.24</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -730,8 +730,9 @@ function renderDiagram(c, sim, items, needContainers, extra) {
             for (let li = 0; li < nL; li++) {
               const L = layers[nL - 1 - li];
               let tag = '';
-              if (nL === 2) tag = li === 0 ? '（上层）' : '（下层）';
-              else tag = li === 0 ? '（最上层）' : li === nL - 1 ? '（最下层）' : '（中层）';
+              if (li === 0) tag = '（上层）';
+              else if (li === nL - 1) tag = '（下层）';
+              else tag = '（中层）';
               layerLabels.push(`<div style="font-size:12px;font-weight:bold;color:#111;white-space:nowrap;">${L.t}mm${tag}${L.pcs}张</div>`);
             }
             inner += `<div style="position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;line-height:1.25;">
