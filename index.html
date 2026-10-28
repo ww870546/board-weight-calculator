@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.20</title>
+<title>板材多功能计算器 v3.21</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -110,7 +110,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.20</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.21</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -605,6 +605,8 @@ function simulateLoading(c, items, extra) {
   const rotatedPallet = (maxPalW > maxPalL); // 旋转平放：板长沿柜宽、柜宽被占满，横向立放(板厚沿柜宽排)无意义
   const standCols = rotatedPallet ? 0 : Math.floor(c.L / maxPalL);
   const availH = c.H - TOP_CLEARANCE;
+  // 每托封顶防护（盖板）高度：不打木箱(木托)+3cm，打木箱+5cm；与托盘脚130mm叠加，不冲突
+  const topCover = (extra >= 0.05) ? 0.05 : 0.03;
   const rem = items.map(it => it.n);
   const boxes = [];
   let guard = 0;
@@ -620,7 +622,7 @@ function simulateLoading(c, items, extra) {
           for (let ii = 0; ii < items.length; ii++) {
             if (rem[ii] <= 0) continue;
             const it = items[ii];
-            const byH = Math.floor((availH - baseH - PALLET_H) / (it.t / 1000));
+            const byH = Math.floor((availH - baseH - PALLET_H - topCover) / (it.t / 1000));
             if (byH < 1) continue;
             const pcs = Math.min(rem[ii], it.maxPcs, byH);
             if (pcs < 1) continue;
@@ -630,7 +632,7 @@ function simulateLoading(c, items, extra) {
           const it = items[placed.ii];
           layers.push({ t: it.t, color: it.color, pcs: placed.pcs });
           rem[placed.ii] -= placed.pcs;
-          baseH += PALLET_H + (it.t / 1000) * placed.pcs;
+          baseH += PALLET_H + topCover + (it.t / 1000) * placed.pcs;
         }
         box.flat.push(balanceLayers(layers));
       }
