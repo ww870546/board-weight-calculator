@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.26</title>
+<title>板材多功能计算器 v3.27</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -80,6 +80,12 @@
     #container-result .pallet-advice { display: none !important; }
     .print-head, .print-foot { display: block !important; }
     .print-order { display: block !important; }
+    /* 隐藏横向滚动条，打印不留灰条 */
+    .table-scroll, #container-diagram, .diagram-scroll, [class*="scroll"] { overflow: hidden !important; }
+    /* 禁止从中间切断：汇总条、海运表格、单个柜整体推到下一页（示意图容器不整体禁止，让柜自然流动） */
+    .summary, #container-result table, .cabinet-block { page-break-inside: avoid !important; break-inside: avoid !important; }
+    /* 表格不要断行 */
+    table { page-break-inside: avoid !important; break-inside: avoid !important; }
   }
   .print-head, .print-foot { display: none; font-size: 11px; color: #666; }
   .print-head { text-align: right; margin-bottom: 4px; }
@@ -110,7 +116,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.26</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.27</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
@@ -139,8 +145,6 @@
         <th style="width:60px;">张数</th>
         <th>单张kg</th>
         <th>小计kg</th>
-        <th>单张m³</th>
-        <th>小计m³</th>
         <th style="width:36px;"></th>
       </tr>
     </thead>
@@ -277,8 +281,6 @@ function addRow(data = {}) {
     <td><input type="number" class="f-n" value="${data.n ?? ''}" min="0" step="1" placeholder="张"></td>
     <td class="num r-one"></td>
     <td class="num r-sum-kg"></td>
-    <td class="num r-one-v"></td>
-    <td class="num r-sum-v"></td>
     <td><span class="del-row" title="删除此行">×</span></td>
   `;
   tr.querySelector('.del-row').addEventListener('click', () => {
@@ -320,8 +322,6 @@ function recalc() {
     const sumVol = oneVol * n;
     tr.querySelector('.r-one').textContent = oneKg.toFixed(2);
     tr.querySelector('.r-sum-kg').textContent = sumKg.toFixed(2);
-    tr.querySelector('.r-one-v').textContent = r2(oneVol);
-    tr.querySelector('.r-sum-v').textContent = r2(sumVol);
     totalPcs += n; totalKg += sumKg; totalVol += sumVol;
   });
   document.getElementById('sum-pcs').textContent = totalPcs;
@@ -347,8 +347,6 @@ function collectRows() {
     const n = Math.max(0, parseFloat(tr.querySelector('.f-n').value) || 0);
     const oneKg = parseFloat(tr.querySelector('.r-one').textContent) || 0;
     const sumKg = parseFloat(tr.querySelector('.r-sum-kg').textContent) || 0;
-    const oneVol = parseFloat(tr.querySelector('.r-one-v').textContent) || 0;
-    const sumVol = parseFloat(tr.querySelector('.r-sum-v').textContent) || 0;
     if (t && n && coeff > 0) data.push({
       '序号': i + 1,
       '长(mm)': W, '宽(mm)': L,
@@ -356,8 +354,6 @@ function collectRows() {
       '厚(mm)': t, '张数': n,
       '单张kg': oneKg.toFixed(2),
       '小计kg': sumKg.toFixed(2),
-      '单张m³': r2(oneVol),
-      '小计m³': r2(sumVol),
     });
   });
   return data;
@@ -370,7 +366,7 @@ function exportExcel() {
   const sumTon = document.getElementById('sum-ton').textContent;
   const sumVol = document.getElementById('sum-vol').textContent;
 
-  const headers = ['序号','长(mm)','宽(mm)','密度','厚(mm)','张数','单张kg','小计kg','单张m³','小计m³'];
+  const headers = ['序号','长(mm)','宽(mm)','密度','厚(mm)','张数','单张kg','小计kg'];
   const orderNo = (document.getElementById('order-no').value || '').trim();
   const rows = [];
   if (orderNo) {
@@ -379,8 +375,8 @@ function exportExcel() {
   }
   rows.push(headers);
   data.forEach(r => rows.push([r['序号'], r['长(mm)'], r['宽(mm)'], r['密度'], r['厚(mm)'], r['张数'],
-    parseFloat(r['单张kg']), parseFloat(r['小计kg']), parseFloat(r['单张m³']), parseFloat(r['小计m³'])]));
-  rows.push(['合计','','','','', parseInt(sumPcs), '', sumKg, '', sumVol]);
+    parseFloat(r['单张kg']), parseFloat(r['小计kg'])]));
+  rows.push(['合计','','','','', parseInt(sumPcs), '', sumKg]);
 
   if (typeof XLSX === 'undefined') { alert('Excel 库未加载（需联网）'); return; }
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -779,7 +775,7 @@ function renderDiagram(c, sim, items, needContainers, extra) {
         });
       }
     }
-    blocks += `<div style="margin:0 auto 26px;width:${cW+padL+26}px;">
+    blocks += `<div class="cabinet-block" style="margin:0 auto 26px;width:${cW+padL+26}px;">
       <div style="position:relative;width:${cW+padL+26}px;height:${cH+padT+8}px;">
         <div style="position:absolute;left:${padL}px;top:5px;font-size:13px;font-weight:bold;color:#333;">第 ${bi+1} 柜${isExtra?'（减载/留空）':''}</div>
         <div style="position:absolute;top:5px;left:${padL}px;width:${cW}px;text-align:center;font-size:12px;font-weight:bold;color:#333;">长 ${c.L}m</div>
