@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>板材多功能计算器 v3.31</title>
+<title>板材多功能计算器 v3.32</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   body { font-family: "Microsoft Yahei", -apple-system, sans-serif; margin: 16px; background: #fafafa; color: #222; }
@@ -86,7 +86,9 @@
     #rows-table { width: 100% !important; table-layout: auto !important; }
     td input, td select { border: none !important; background: transparent; text-align: center !important; font-size: 9px; width: 100%; }
     #container-table th:last-child, #container-table td:last-child { display: none !important; }
-    .del-cell { display: none !important; }
+    /* 删除号列不隐藏，改为0宽占位：让表格最右列提供右边框 */
+    .del-cell { display: table-cell !important; width: 0 !important; padding: 0 !important; border: 1px solid #000 !important; font-size: 0; overflow: hidden; }
+    .del-cell .del-row { display: none !important; }
     #container-table .advice-row td { display: table-cell !important; }
     #container-result .pallet-advice { display: none !important; }
     .print-head, .print-foot { display: block !important; }
@@ -126,7 +128,7 @@
 <h2>板材多功能计算器</h2>
 <div class="sub">一行一个规格，自动累计总重和总体积</div>
 <div class="print-order" id="print-order" style="display:none;"></div>
-<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.31</div>
+<div class="credit-line" style="text-align:center;font-size:11px;color:#aaa;margin-bottom:12px;">开发：@Kase&amp;炆燃科技 v3.32</div>
 
 <div class="note">
   <b>系数说明（标准板 1220×2440）：</b>
